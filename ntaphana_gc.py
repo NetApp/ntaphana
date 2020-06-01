@@ -11,10 +11,13 @@
 # These include application-consistent instant snapshots, restore, and
 # cloning.
 #
-# This is sample code, not a supported product.
+# This is sample code, provided as-is without any maintenance or support, and
+# subject to the BSD license.”
 #
-# XXX [legal-approved copyright]
-# © 2019 NetApp, Inc. All rights reserved.
+# © 2019, 2020 NetApp, Inc. All Rights Reserved. NETAPP, the NETAPP logo, and the marks 
+# listed at http://www.netapp.com/TM are trademarks of NetApp, Inc. in the U.S. and/or 
+# other countries. Other company and product names may be trademarks of their respective 
+# owners.
 #
 
 #
