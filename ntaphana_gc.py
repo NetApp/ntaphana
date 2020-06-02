@@ -12,7 +12,7 @@
 # cloning.
 #
 # This is sample code, provided as-is without any maintenance or support, and
-# subject to the BSD license.”
+# subject to the BSD license.
 #
 # © 2019, 2020 NetApp, Inc. All Rights Reserved. NETAPP, the NETAPP logo, and the marks 
 # listed at http://www.netapp.com/TM are trademarks of NetApp, Inc. in the U.S. and/or 
