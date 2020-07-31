@@ -24,24 +24,23 @@
 #
 # 1) pip
 #
-#     pip --version
+#     pip3 --version
 #
 #   if you don't have pip installed, install it
 #
-#     python -m ensurepip --default-pip
+#     python3 -m ensurepip --default-pip
 #
 #   to learn more, see:
 #
 #     https://packaging.python.org/tutorials/installing-packages/
 #
-# 2) install the Azure SDK and the requests library
+# 2) install the ANF components of the Azure SDK
 #
-#     pip install requests
-#     pip install azure 
-#
-#   python3 is not currently supported
+#     pip3 install azure.mgmt.netapp
 #
 # 3) copy this script to your host and insure it is executable by root
+#
+#     python3 is required
 #
 # 4) when onboarded to Azure, you received credentials with the following or
 #    similar format:
@@ -274,7 +273,6 @@ def restore_internal(mount_point, snapshot, verbose):
     print("Restore complete")
 
 import json
-import requests
 
 DEFAULT_SERVICE_ACCOUNT_FILE_NAME = 'key.json'
 DEFAULT_CONFIG_FILE_NAME = 'config.json'
@@ -284,8 +282,7 @@ DEFAULT_TIMEOUT = 5
 #
 # Azure API Integration
 #
-# We implement snapshot and clone. We use the Python SDK when possible and the
-# requests module when not.
+# We implement snapshot, restore and clone. 
 #
 
 class ANF():
@@ -646,35 +643,6 @@ class ANF():
         restore_internal(mount_point, snapshot, verbose)
 
     #
-    # Get the Azure authentication token for use with the requests library.
-    # - This function is only necessary while the SDK does not support cloning
-    #
-    def get_azure_token(self, key_file, verbose):
-        if not key_file:
-            key_file = DEFAULT_SERVICE_ACCOUNT_FILE_NAME
-
-        try:
-            with open(key_file) as file:
-                service_principal = json.load(file)
-        except:
-            print("File '" + key_file + "' not found or failed to load")
-            return ""
-
-        client_id = service_principal.get("appId")
-        secret = service_principal.get("password")
-        tenant = service_principal.get("tenant")
-
-        url = "https://login.microsoftonline.com/" + tenant + "/oauth2/token"
-        data = "grant_type=client_credentials&client_id=" + client_id + \
-            "&client_secret=" + secret + \
-            "&resource=https%3A%2F%2Fmanagement.azure.com%2F"
-
-        output = requests.get(url, data=data)
-
-        dict = json.loads(output.text)
-        return dict.get("access_token")
-
-    #
     # Provision a new cloud volume which is a clone of the snapshot of
     # another cloud volume
     # - we accept the key_file instead of an auth object because we need it
@@ -682,14 +650,16 @@ class ANF():
     #   auth object directly
     #
     def clone(self, cloud_volume, snapshot, volume_name, export_path, cidr,
-        system_id, userstore_key, key_file, client_id, verbose):
-        credentials = self.get_auth(key_file, verbose)
+        auth, client_id, verbose):
+        credentials = auth
         subscription_id = client_id
 
-        if not export_path:
-            export_path = volume_name
-        if not cidr:
-            cidr = "0.0.0.0/0"
+        if export_path:
+            print("Error - setting the EXPORT_PATH not surrently supported")
+            sys.exit(2)
+        if cidr:
+            print("Error - setting the CIDR not surrently supported")
+            sys.exit(2)
 
         # validate arguments
         if not subscription_id:
@@ -726,60 +696,24 @@ class ANF():
         resource_group, netapp_account, capacity_pool = \
             self.parse_volume_id(volume)
 
-        #
-        # The SDK doesn't support cloning, so we need to do this with the
-        # requests library.
-        #
-
-        # get the authentication token
-        token = self.get_azure_token(key_file, verbose)
-
-        # construct the data
-        properties = dict(creationToken=export_path,
-            usageThreshold=volume.usage_threshold, subnetId=volume.subnet_id,
-            serviceLevel=volume.service_level, snapshotId=snapshot_id)
-        data = dict(location=volume.location, properties=properties)
-
-        # concatenate the url
-        url = "https://management.azure.com/subscriptions/" + \
-            subscription_id + "/resourceGroups/" + resource_group + \
-            "/providers/Microsoft.NetApp/netAppAccounts/" + netapp_account + \
-            "/capacityPools/" + capacity_pool + "/volumes/" + volume_name + \
-            "?api-version=2017-08-15"
-
-        # contruct the headers
-        headers = {
-            "Authorization": "Bearer {}".format(token),
-            "Content-Type": "application/json"
-        }
-
+        volume_body = Volume(
+            location = volume.location,
+            usage_threshold = volume.usage_threshold,
+            snapshot_id = snapshot_id,
+            creation_token = volume_name,
+            service_level = volume.service_level,
+            subnet_id = volume.subnet_id
+        )
         start_time = datetime.datetime.now()
-        output = requests.put(url=url, json=data, headers=headers)
-
-        results = json.loads(output.text)
-        if results.get('error'):
-            print("Error creating clone - '" + results['error']['message'])
-            sys.exit(2)
-        if verbose:
-            print("Waiting for clone '" + results['name'] + "'")
-
-        # Wait for clone to be available
-        while True:
-            time.sleep(1)
-            try:
-                volume = anf_client.volumes.get(resource_group, netapp_account,
-                    capacity_pool, volume_name)
-                if volume.provisioning_state != 'Creating':
-                    break
-            except:
-                pass
-
-        elapsed = datetime.datetime.now() - start_time
-        if volume.provisioning_state != 'Succeeded':
-            print("Error - clone failed to initialize: '" + volume_name + "'")
-        else:
+        try:
+            anf_client.volumes.create_or_update(volume_body, 
+                resource_group, netapp_account, capacity_pool, 
+                volume_name)
+            elapsed = datetime.datetime.now() - start_time
             print("Created clone '" + volume_name + "' in " + \
                 str(elapsed.total_seconds()) + " seconds")
+        except:
+            print("Error - clone failed to initialize: '" + volume_name + "'")
 
     #
     # List the snapshots of a cloud volume
@@ -816,15 +750,18 @@ class ANF():
             netapp_account, capacity_pool, cloud_volume)
 
         # use a standard library to format the table
-        row_format ="{:>25}"
-        print(row_format.format("Name"))
+        row_format ="{:>30} {:>30}"
+        print(row_format.format("Name", "Created"))
         for snapshot in snapshots:
-            print(row_format.format(snapshot.name.split("/")[3]))
+            try:
+                date = str(snapshot.created)
+            except:
+                # the python 2 version of the SDK doesn't return creation dates
+                date = "None"
+            print(row_format.format(snapshot.name.split("/")[3], date))
 
     #
     # Delete a snapshot 
-    # - the "all-previous" option is not supported because the SDK doesn't
-    #   return the creation date of the snapshots
     # - snapshots which are the bases of clones cannot be deleted
     #
     def delete_snapshot(self, cloud_volume, snapshot_name, all_previous, 
@@ -860,10 +797,40 @@ class ANF():
             print("Error - snapshot '" + snapshot_name + "' not found")
             sys.exit(2)
 
-        result = anf_client.snapshots.delete(resource_group,
-            netapp_account, capacity_pool, cloud_volume, snapshot_name)
-
-        print("Snapshot '" + snapshot_name + "' deleted")
+        # get a list of all snapshot we might want to delete
+        if all_previous:
+            try:
+                created = snapshot.created
+                if verbose:
+                    print("Delete all snapshots before " + str(created))
+                snapshots = anf_client.snapshots.list(resource_group, 
+                    netapp_account, capacity_pool, cloud_volume)
+            except:
+                # the python 2 version of the SDK doesn't return creation dates
+                print("Error - no creation dates found on snapshots, " + \
+                    "no snapshots deleted")
+                sys.exit(2)
+            for candidate in snapshots:
+                date = candidate.created
+                if date <= created:
+                    if verbose:
+                        print("Delete snapshot: " + candidate.name)
+                    try:
+                        anf_client.snapshots.delete(resource_group,
+                            netapp_account, capacity_pool, cloud_volume, 
+                            candidate.name.split("/")[3])
+                        print("Snapshot '" + candidate.name + "' deleted")
+                    except:
+                        print("Error - '" + candidate.name + "' not deleted")
+        else:
+            if verbose:
+                print("Delete snapshot: " + snapshot.name)
+            try:
+                anf_client.snapshots.delete(resource_group,
+                    netapp_account, capacity_pool, cloud_volume, snapshot_name)
+                print("Snapshot '" + snapshot_name + "' deleted")
+            except:
+                print("Error - '" + snapshot_name + "' not deleted")
 
 if __name__ == "__main__":
     # create platform-specific object
@@ -915,9 +882,10 @@ if __name__ == "__main__":
         list the snapshots of a cloud volume")
     parser.add_argument("--delete-snapshot", "-x", action="store_true",
         help="Usage: ntaphana --delete-snapshot --cloud-volume CLOUD_VOLUME \
-        --snapshot SNAPSHOT [--SID SID] [--key-file KEY_FILE] \
+        --snapshot SNAPSHOT [--all-previous] [--SID SID] [--key-file KEY_FILE] \
         [--config-file CONFIG_FILE] [--verbose] \
-        permanently delete a snapshot of a cloud volume")
+        permanently delete a snapshot of a cloud volume; use the \
+        'all-previous' flag with caution")
     parser.add_argument("--cloud-volumes", "-c", help="the name of a mount \
         point or a cloud volume or a comma-separated list")
     parser.add_argument("--backup-name", "-p", help="both the \
@@ -949,6 +917,9 @@ if __name__ == "__main__":
     parser.add_argument("--CIDR", "-z", help="CIDR format describing hosts to \
         export to with full permission; if not specified 0.0.0.0/0 will be \
         used")
+    parser.add_argument("--all-previous", "-P", action="store_true",
+        help="delete all previous snapshots as well as the specified snapshot; \
+        use with caution")
     args = parser.parse_args()
 
     # load the authentication headers from the key file
@@ -972,17 +943,13 @@ if __name__ == "__main__":
         CVS.restore(args.cloud_volume, args.snapshot, system_id, userstore_key,
             auth, client_id, args.verbose)
     elif args.clone:
-        # for ANF, we pass the key_file instead of the auth so we can
-        # use the requests library instead of the SDK
-        auth = args.key_file
         CVS.clone(args.cloud_volume, args.snapshot, args.volume_name,
-            args.export_path, args.CIDR, system_id, userstore_key, 
-            auth, client_id, args.verbose)
+            args.export_path, args.CIDR, auth, client_id, args.verbose)
     elif args.list_snapshots:
         CVS.list_snapshots(args.cloud_volume, system_id, auth, client_id, 
             args.verbose)
     elif args.delete_snapshot:
-        CVS.delete_snapshot(args.cloud_volume, args.snapshot, False,
+        CVS.delete_snapshot(args.cloud_volume, args.snapshot, args.all_previous,
             system_id, auth, client_id, args.verbose)
     else:
         print("Error: specify --hana-backup, --create-snapshot, " + \
