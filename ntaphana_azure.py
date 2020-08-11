@@ -653,9 +653,6 @@ class ANF():
     #
     # Provision a new cloud volume which is a clone of the snapshot of
     # another cloud volume
-    # - we accept the key_file instead of an auth object because we need it
-    #   to get an Azure token; once the SDK supports cloning, we can use the
-    #   auth object directly
     #
     def clone(self, cloud_volume, snapshot, volume_name, export_path, cidr,
         auth, client_id, verbose):
@@ -725,8 +722,6 @@ class ANF():
 
     #
     # List the snapshots of a cloud volume
-    # - the SDK only returns the names of the snapshot, not the creation date
-    #   nor unique size
     #
     def list_snapshots(self, cloud_volume, system_id, auth, client_id,
         verbose):
