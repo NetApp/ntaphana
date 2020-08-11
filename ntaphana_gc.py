@@ -618,7 +618,7 @@ class CVS4GC():
     # another cloud volume
     #   
     def clone(self, cloud_volume, snapshot, volume_name, export_path, cidr, 
-        system_id, userstore_key, auth, project_number, verbose):
+        auth, project_number, verbose):
 
         if not export_path:
             export_path = volume_name
@@ -894,8 +894,7 @@ if __name__ == "__main__":
         help="Usage: ntaphana --clone --cloud-volume CLOUD_VOLUME \
         --snapshot SNAPSHOT --volume-name VOLUME_NAME \
         [--export-path EXPORT_PATH] [--CIDR CIDR] [--SID SID] \
-        [--userstore-key USERSTORE_KEY] [--key-file KEY_FILE] \
-        [--config-file CONFIG_FILE] [--verbose] \
+        [--key-file KEY_FILE] [--config-file CONFIG_FILE] [--verbose] \
         create a volume from a snapshot; specify the volume and \
         snapshot to be cloned and the name of the new volume")
     parser.add_argument("--list-snapshots", "-L", action="store_true",
@@ -967,8 +966,7 @@ if __name__ == "__main__":
             auth, project_number, args.verbose)
     elif args.clone:
         CVS.clone(args.cloud_volume, args.snapshot, args.volume_name,
-            args.export_path, args.CIDR, system_id, userstore_key, 
-            auth, project_number, args.verbose)
+            args.export_path, args.CIDR, auth, project_number, args.verbose)
     elif args.list_snapshots:
         CVS.list_snapshots(args.cloud_volume, system_id, auth, project_number, 
             args.verbose)

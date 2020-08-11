@@ -197,8 +197,7 @@ def open_backup_internal(ebid, system_id, userstore_key, verbose):
     if ebid:
         comment = "'" + ebid + "'"
     else:
-        comment = "'" + datetime.datetime.now().isoformat().replace(":","") + \
-            "'"
+        comment = "'" + create_snapshot_name() + "'"
     output = run_command(HDBSQL + [userstore_key] + [OPEN_BACKUP + " \"" + \
         comment + "\""], verbose, system_id=system_id)
 
@@ -271,6 +270,15 @@ def restore_internal(mount_point, snapshot, verbose):
 
     run_command(RSYNC + [source] + [destination], verbose)
     print("Restore complete")
+
+#
+# Generate a default snapshot name
+#
+def create_snapshot_name():
+    # snapshot names may not contain ":" or "." characters, so remove
+    date = datetime.datetime.now().isoformat()
+    snapshot_name = date.replace(":","-").replace(".","-")
+    return snapshot_name
 
 import json
 
@@ -527,8 +535,7 @@ class ANF():
                 "configuration file")
             sys.exit(2)
         if not snapshot_name:
-            # snapshot names may not contain ":" characters, so remove
-            snapshot_name = datetime.datetime.now().isoformat().replace(":","")
+            snapshot_name = create_snapshot_name()
         if not cloud_volumes:
             print("Error - no cloud volumes specified, specify with " + \
                 "--cloud-volumes or in configuration file")
@@ -556,9 +563,7 @@ class ANF():
                 "configuration file")
             sys.exit(2)
         if not snapshot_name:
-            # snapshot names may not contain ":" characters, so remove
-            snapshot_name = datetime.datetime.now().isoformat().translate(\
-                None, ":")
+            snapshot_name = create_snapshot_name()
         if not cloud_volumes:
             print("Error - no cloud volumes specified, specify with " + \
                 "--cloud-volumes or in configuration file")
@@ -576,8 +581,11 @@ class ANF():
         # open HANA backup
         open_backup_internal(snapshot_name, system_id, userstore_key, verbose)
 
-        result = self.create_snapshot_internal(volumes, cloud_volumes,
-            subscription_id, credentials, snapshot_name, verbose)
+        try:
+            result = self.create_snapshot_internal(volumes, cloud_volumes,
+                subscription_id, credentials, snapshot_name, verbose)
+        except:
+            result = False
 
         # close HANA backup
         close_backup_internal(snapshot_name, system_id, userstore_key, \
