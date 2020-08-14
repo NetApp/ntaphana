@@ -14,10 +14,10 @@
 # This is sample code, provided as-is without any maintenance or support, and
 # subject to the Apache License 2.0.
 #
-# © 2019, 2020 NetApp, Inc. All Rights Reserved. NETAPP, the NETAPP logo, and the marks
-# listed at http://www.netapp.com/TM are trademarks of NetApp, Inc. in the U.S. and/or
-# other countries. Other company and product names may be trademarks of their respective
-# owners.
+# © 2019, 2020 NetApp, Inc. All Rights Reserved. NETAPP, the NETAPP logo, and 
+# the marks listed at http://www.netapp.com/TM are trademarks of NetApp, Inc. 
+# in the U.S. and/or other countries. Other company and product names may be 
+# trademarks of their respective owners.
 #
 
 #
@@ -618,7 +618,7 @@ class CVS4GC():
     # another cloud volume
     #   
     def clone(self, cloud_volume, snapshot, volume_name, export_path, cidr, 
-        auth, project_number, verbose):
+        auth, project_number, network, verbose):
 
         if not export_path:
             export_path = volume_name
@@ -966,7 +966,8 @@ if __name__ == "__main__":
             auth, project_number, args.verbose)
     elif args.clone:
         CVS.clone(args.cloud_volume, args.snapshot, args.volume_name,
-            args.export_path, args.CIDR, auth, project_number, args.verbose)
+            args.export_path, args.CIDR, auth, project_number, network,
+            args.verbose)
     elif args.list_snapshots:
         CVS.list_snapshots(args.cloud_volume, system_id, auth, project_number, 
             args.verbose)
