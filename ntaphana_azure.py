@@ -77,6 +77,15 @@
 #
 
 #
+# HANA and OS Interface Functions
+#
+import os, sys
+import argparse
+import datetime, time
+import subprocess
+from subprocess import check_call, check_output, CalledProcessError
+
+#
 # Dynamically detect the platform we're running on by looking for the
 # proper libraries
 #
@@ -90,15 +99,6 @@ try:
 except:
     print("Error - expected libraries not found, see installation instructions")
     sys.exit(2)
-
-#
-# HANA and OS Interface Functions
-#
-import os, sys
-import argparse
-import datetime, time
-import subprocess
-from subprocess import check_call, check_output, CalledProcessError
 
 #
 # Function for running commands
