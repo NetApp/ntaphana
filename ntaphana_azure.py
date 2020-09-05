@@ -36,7 +36,7 @@
 #
 # 2) install the ANF components of the Azure SDK
 #
-#     pip3 install azure.mgmt.netapp
+#     pip3 install azure-mgmt-netapp==0.3
 #
 # 3) copy this script to your host and insure it is executable by root
 #
